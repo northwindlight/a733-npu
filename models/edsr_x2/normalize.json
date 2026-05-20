@@ -1,0 +1,6 @@
+{
+  "_comment": "EDSR (super-image/eugenesiow/edsr-base) 训练时输入是 0..255 RGB，无归一化。",
+  "mean": [0, 0, 0],
+  "scale": [1.0, 1.0, 1.0],
+  "reverse_channel": false
+}

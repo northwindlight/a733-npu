@@ -1,0 +1,61 @@
+name: Build EDSR x2 NBG
+
+# 阶段1 (export-onnx) 在公共 ubuntu runner 跑；
+# 阶段2 (pegasus-convert) 必须用 self-hosted runner（alpine），
+# 因为 ubuntu-npu:v2.0.10.1 镜像 7.8GB，且转换需要 6G+ 内存、~4h 时间。
+on:
+  workflow_dispatch:
+    inputs:
+      resolution:
+        description: 'CHW (例如 3,360,640)'
+        default: '3,360,640'
+        type: string
+      npu:
+        description: 'NPU target (v1/v2/v3)'
+        default: 'v3'
+        type: choice
+        options: [v1, v2, v3]
+
+jobs:
+  export-onnx:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.11' }
+      - run: pip install torch==2.0.1 onnx onnxruntime super-image pillow
+      - run: python3 scripts/export_onnx.py --resolution '${{ inputs.resolution }}' --output edsr_x2.onnx
+      - uses: actions/upload-artifact@v4
+        with: { name: edsr-onnx, path: edsr_x2.onnx }
+
+  pegasus-convert:
+    needs: export-onnx
+    runs-on: [self-hosted, linux, x64]
+    timeout-minutes: 720
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: edsr-onnx
+          path: models/edsr_x2/
+
+      - name: rename to expected layout
+        run: mv models/edsr_x2/edsr_x2.onnx models/edsr_x2/edsr_x2.onnx || true
+
+      - name: prepare calibration
+        run: |
+          docker run --rm -v "$PWD/models/edsr_x2:/wk" -w /wk \
+            ubuntu-npu:v2.0.10.1 \
+            python3 prepare_calib.py --n 8
+
+      - name: pegasus pipeline
+        run: |
+          docker run --rm -v "$PWD:/workspace" \
+            ubuntu-npu:v2.0.10.1 \
+            bash /workspace/scripts/pipeline.sh edsr_x2 ${{ inputs.npu }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: edsr-nbg-${{ inputs.npu }}
+          path: models/edsr_x2/wksp/edsr_x2_uint8/**/*.nb

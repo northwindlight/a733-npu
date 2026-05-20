@@ -1,0 +1,31 @@
+# 大文件本地保留，靠 release/artifact 分发
+*.tar
+*.tar.gz
+*.tar.zip
+*.zip
+*.nb
+*.onnx
+*.data
+*.quantize
+
+# pegasus 中间产物
+models/*/wksp/
+models/*/inf/
+models/*/export/
+models/*/export_nbg/
+models/*/_raw/
+models/*/calib/
+models/*/dataset.txt
+models/*/*_inputmeta.yml
+models/*/*.json
+!models/*/normalize.json
+
+# venv / python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# editor
+.vscode/
+.idea/
