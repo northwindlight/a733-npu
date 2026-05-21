@@ -3,6 +3,10 @@ name: Build EDSR x2 NBG
 # 镜像托管在 ghcr.io/northwindlight/ubuntu-npu (private)，CI 用 GITHUB_TOKEN 拉。
 # pegasus-convert 阶段需要 6G+ 内存、~4h CPU；GitHub 免费 runner (7G RAM / 14G SSD)
 # 刚好够用，如果 OOM 则改 runs-on 到付费 larger runner。
+permissions:
+  contents: read
+  packages: read
+
 on:
   workflow_dispatch:
     inputs:
