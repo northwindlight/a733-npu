@@ -1,6 +1,6 @@
 #!/bin/bash
 # ONNX → Acuity → uint8 量化 → NBG 单 .nb 文件
-# 目标：Amlogic A733 NPU (VIP9000 NanoDI Plus, v3)
+# 目标：全志 A733 NPU (Allwinner A733, VIP9000 NanoDI Plus, v3)
 #
 # 用法（容器内）：
 #   docker run --rm -v $PWD:/workspace ubuntu-npu:v2.0.10.1 \

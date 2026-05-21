@@ -1,6 +1,6 @@
 # a733-npu
 
-把 EDSR x2 超分模型编成 Amlogic A733（VeriSilicon VIP9000 NanoDI Plus NPU）能直接 load 的 NBG 单文件。
+把 EDSR x2 超分模型编成全志 A733（Allwinner A733，VeriSilicon VIP9000 NanoDI Plus NPU）能直接 load 的 NBG 单文件。
 
 ## 流水线
 
@@ -34,7 +34,7 @@ ubuntu-npu_v2.0.10.1.tar.zip         ← VSI acuity-toolkit Docker 镜像（giti
 
 ## NPU target
 
-`scripts/env.sh` 里硬编码三档（来自 amlogic ai-sdk-main/models/env.sh 的 `pegasus_setup.sh`）：
+`scripts/env.sh` 里硬编码三档（来自全志 ai-sdk/models/env.sh 的 `pegasus_setup.sh`）：
 
 | 档位 | VSIMULATOR_CONFIG | shader_core | 用途 |
 |------|-------------------|-------------|------|

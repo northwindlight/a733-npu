@@ -2,7 +2,7 @@
 # 设定 pegasus / VSI SDK 环境与 NPU target。
 # 用法: source scripts/env.sh v3
 #
-# v1/v2/v3 对应不同 NPU IP（参考 amlogic ai-sdk-main/models/env.sh）：
+# v1/v2/v3 对应不同 NPU IP（参考 ai-sdk/models/env.sh）：
 #   v1 → VIP9000PICO_PID0XEE                  (shader_core 0.5)
 #   v2 → VIP9000NANOSI_PLUS_PID0X10000016     (shader_core 1)
 #   v3 → VIP9000NANODI_PLUS_PID0X1000003B     (shader_core 1)  ← A733
