@@ -66,9 +66,11 @@ $PEGASUS quantize \
     --quantizer       asymmetric_affine \
     --qtype           uint8
 
-echo "[4/5] export ovxlib (generate C code, no NBG pack yet)"
-# 不带 --pack-nbg-unify 和 LD_LIBRARY_PATH —— vsimulator/lib 里的
-# libtorch_cpu/libc10 会和 pegasus.py 自身的 torch 冲突，导致 import 阶段崩溃。
+echo "[4/5] export ovxlib + pack NBG (target=$VSIMULATOR_CONFIG)"
+# LD_LIBRARY_PATH 顺序很关键：torch/lib 必须在 vsimulator/lib 前面，
+# 否则 vsimulator 的 libc10.so/libtorch_cpu.so 会覆盖 Python torch 的版本导致 import 崩溃。
+TORCH_LIB="/usr/local/lib/python3.8/dist-packages/torch/lib"
+LD_LIBRARY_PATH="$TORCH_LIB:$VIV_SDK/vsimulator/lib:$VIV_SDK/common/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
 $PEGASUS export ovxlib \
     --model           "$NAME.json" \
     --model-data      "$NAME.data" \
@@ -76,29 +78,17 @@ $PEGASUS export ovxlib \
     --dtype           quantized \
     --target-ide-project linux64 \
     --with-input-meta "${NAME}_inputmeta.yml" \
+    --pack-nbg-unify \
     --optimize        "$VSIMULATOR_CONFIG" \
     --viv-sdk         "$VIV_SDK" \
     --output-path     "wksp/${NAME}_uint8/$NAME"
 
-echo "[5/5] NBG pack (gen_nbg)"
-# gen_nbg 是纯 C++ 二进制，需要 vsimulator 的 .so，但不需要 Python torch。
-# 所以单独在这一步加 LD_LIBRARY_PATH。
-EXPORT_DIR="wksp/${NAME}_uint8"
-GEN_NBG=$(find "$EXPORT_DIR" -name gen_nbg -type f | head -1)
-DATA=$(find "$EXPORT_DIR" -name '*.export.data' | head -1)
-TENSOR=$(find "$EXPORT_DIR" -name '*.tensor' | head -1)
-
-if [ -z "$GEN_NBG" ] || [ -z "$DATA" ]; then
-    echo "FAIL: gen_nbg or .export.data not found in $EXPORT_DIR" >&2
-    exit 1
-fi
-
-LD_LIBRARY_PATH="$VIV_SDK/vsimulator/lib:$VIV_SDK/common/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
-    "$GEN_NBG" "$DATA" ${TENSOR:+"$TENSOR"}
-
+echo "[5/5] locate NBG"
+# pegasus --pack-nbg-unify 会在 output-path 末尾自动加 _nbg_unify 后缀
 NB=$(find wksp -name '*.nb' | head -1)
 if [ -z "$NB" ]; then
     echo "FAIL: no .nb produced" >&2
+    find wksp -type f | sort
     exit 1
 fi
 echo "OK: $NB ($(du -h "$NB" | cut -f1))"
