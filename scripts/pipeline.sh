@@ -34,11 +34,11 @@ WORK="$ROOT/models/$NAME"
 
 cd "$WORK"
 
-echo "[0/4] clean intermediate"
+echo "[0/5] clean intermediate"
 rm -f "$NAME.json" "$NAME.data" "${NAME}_uint8.quantize" "${NAME}_inputmeta.yml"
 rm -rf wksp
 
-echo "[1/4] import onnx → acuity ir"
+echo "[1/5] import onnx → acuity ir"
 $PEGASUS import onnx \
     --model "$NAME.onnx" \
     --output-model "$NAME.json" \
@@ -46,7 +46,7 @@ $PEGASUS import onnx \
     --inputs input --outputs output \
     --input-size-list "$SHAPE"
 
-echo "[2/4] inputmeta (auto-generate, patch from normalize.json)"
+echo "[2/5] inputmeta (auto-generate, patch from normalize.json)"
 # 真实 input lid 由 onnx 节点编号决定（如 input_103），不能写死。
 # pegasus 生成模板，再用 normalize.json 覆盖 mean/scale/reverse_channel。
 $PEGASUS generate inputmeta \
@@ -55,7 +55,7 @@ $PEGASUS generate inputmeta \
 python3 "$ROOT/scripts/patch_inputmeta.py" \
     "${NAME}_inputmeta.yml" normalize.json
 
-echo "[3/4] quantize uint8 (asymmetric_affine)"
+echo "[3/5] quantize uint8 (asymmetric_affine)"
 $PEGASUS quantize \
     --model         "$NAME.json" \
     --model-data    "$NAME.data" \
@@ -66,10 +66,9 @@ $PEGASUS quantize \
     --quantizer       asymmetric_affine \
     --qtype           uint8
 
-echo "[4/4] export ovxlib + pack NBG (target=$VSIMULATOR_CONFIG)"
-# 仅在 export 阶段加 LD_LIBRARY_PATH —— vsimulator/lib 含独立 libtorch_cpu/libc10，
-# 会和 acuitylib 自身的 torch 冲突，所以前几步不能加。
-LD_LIBRARY_PATH="$VIV_SDK/vsimulator/lib:$VIV_SDK/common/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
+echo "[4/5] export ovxlib (generate C code, no NBG pack yet)"
+# 不带 --pack-nbg-unify 和 LD_LIBRARY_PATH —— vsimulator/lib 里的
+# libtorch_cpu/libc10 会和 pegasus.py 自身的 torch 冲突，导致 import 阶段崩溃。
 $PEGASUS export ovxlib \
     --model           "$NAME.json" \
     --model-data      "$NAME.data" \
@@ -77,10 +76,25 @@ $PEGASUS export ovxlib \
     --dtype           quantized \
     --target-ide-project linux64 \
     --with-input-meta "${NAME}_inputmeta.yml" \
-    --pack-nbg-unify \
     --optimize        "$VSIMULATOR_CONFIG" \
     --viv-sdk         "$VIV_SDK" \
     --output-path     "wksp/${NAME}_uint8/$NAME"
+
+echo "[5/5] NBG pack (gen_nbg)"
+# gen_nbg 是纯 C++ 二进制，需要 vsimulator 的 .so，但不需要 Python torch。
+# 所以单独在这一步加 LD_LIBRARY_PATH。
+EXPORT_DIR="wksp/${NAME}_uint8"
+GEN_NBG=$(find "$EXPORT_DIR" -name gen_nbg -type f | head -1)
+DATA=$(find "$EXPORT_DIR" -name '*.export.data' | head -1)
+TENSOR=$(find "$EXPORT_DIR" -name '*.tensor' | head -1)
+
+if [ -z "$GEN_NBG" ] || [ -z "$DATA" ]; then
+    echo "FAIL: gen_nbg or .export.data not found in $EXPORT_DIR" >&2
+    exit 1
+fi
+
+LD_LIBRARY_PATH="$VIV_SDK/vsimulator/lib:$VIV_SDK/common/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
+    "$GEN_NBG" "$DATA" ${TENSOR:+"$TENSOR"}
 
 NB=$(find wksp -name '*.nb' | head -1)
 if [ -z "$NB" ]; then
