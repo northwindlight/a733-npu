@@ -66,8 +66,9 @@ docker run --rm -v "$PWD:/workspace" ubuntu-npu:v2.0.10.1 \
 
 ## CI 注意事项
 
-- `pegasus-convert` job 需要 `[self-hosted, linux, x64]` runner，且 6G+ 内存。
-- 镜像不在 self-hosted runner 上时，先 `docker pull ghcr.io/northwindlight/ubuntu-npu:v2.0.10.1`。
+- 镜像 `ghcr.io/northwindlight/ubuntu-npu:v2.0.10.1`（private），CI 用 `GITHUB_TOKEN` 自动登录拉取。
+- `pegasus-convert` 跑在 `ubuntu-22.04`（GitHub 免费 runner，7G RAM / 14G SSD），刚好够用。
+- 如 OOM，把 `runs-on` 改成 `ubuntu-22.04-4core` 或 larger runner。
 - `gen_nbg` 阶段是 CPU 模拟器，单模型 ~4h（EDSR 类视觉模型典型值），workflow 里 `timeout-minutes: 720`。
 
 ## 校准说明

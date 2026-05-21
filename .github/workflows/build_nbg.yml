@@ -1,8 +1,8 @@
 name: Build EDSR x2 NBG
 
-# 阶段1 (export-onnx) 在公共 ubuntu runner 跑；
-# 阶段2 (pegasus-convert) 必须用 self-hosted runner（alpine），
-# 因为 ubuntu-npu:v2.0.10.1 镜像 7.8GB，且转换需要 6G+ 内存、~4h 时间。
+# 镜像托管在 ghcr.io/northwindlight/ubuntu-npu (private)，CI 用 GITHUB_TOKEN 拉。
+# pegasus-convert 阶段需要 6G+ 内存、~4h CPU；GitHub 免费 runner (7G RAM / 14G SSD)
+# 刚好够用，如果 OOM 则改 runs-on 到付费 larger runner。
 on:
   workflow_dispatch:
     inputs:
@@ -30,7 +30,7 @@ jobs:
 
   pegasus-convert:
     needs: export-onnx
-    runs-on: [self-hosted, linux, x64]
+    runs-on: ubuntu-22.04
     timeout-minutes: 720
     steps:
       - uses: actions/checkout@v4
@@ -40,19 +40,22 @@ jobs:
           name: edsr-onnx
           path: models/edsr_x2/
 
-      - name: rename to expected layout
-        run: mv models/edsr_x2/edsr_x2.onnx models/edsr_x2/edsr_x2.onnx || true
+      - name: docker login ghcr
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: pull image
+        run: docker pull ghcr.io/northwindlight/ubuntu-npu:v2.0.10.1
 
       - name: prepare calibration
         run: |
           docker run --rm -v "$PWD/models/edsr_x2:/wk" -w /wk \
-            ubuntu-npu:v2.0.10.1 \
-            python3 prepare_calib.py --n 8
+            ghcr.io/northwindlight/ubuntu-npu:v2.0.10.1 \
+            python3 prepare_calib.py --fallback-random --n 8
 
       - name: pegasus pipeline
         run: |
           docker run --rm -v "$PWD:/workspace" \
-            ubuntu-npu:v2.0.10.1 \
+            ghcr.io/northwindlight/ubuntu-npu:v2.0.10.1 \
             bash /workspace/scripts/pipeline.sh edsr_x2 ${{ inputs.npu }}
 
       - uses: actions/upload-artifact@v4
