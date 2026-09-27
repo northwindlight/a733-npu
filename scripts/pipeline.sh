@@ -166,8 +166,14 @@ NB="${NBS[0]}"
 echo "OK: $NB ($(du -h "$NB" | cut -f1))"
 
 # ---------------------------------------------------------------- build_info
+GIT_SHA_ARG=()
+# ★不要写成 `[ -n "$X" ] && ARR=(...)`：set -e 下测试为假会让整条列表返回 1 直接退出，
+#   而那正是"没传 GIT_SHA"的正常情况。
+if [ -n "${GIT_SHA:-}" ]; then
+    GIT_SHA_ARG=(--git-sha "$GIT_SHA")
+fi
 python3 "$ROOT/scripts/make_build_info.py" \
-    --model "$NAME" --config "$CFG" --npu "$NPU" \
+    --model "$NAME" --config "$CFG" --npu "$NPU" "${GIT_SHA_ARG[@]}" \
     --onnx "$ONNX" --nbg "$NB" \
     --qtype "$QTYPE" \
     --vsconfig "$VSIMULATOR_CONFIG" \

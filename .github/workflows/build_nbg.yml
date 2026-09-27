@@ -158,7 +158,8 @@ jobs:
 
       - name: pegasus pipeline
         run: |
-          docker run --rm -v "$PWD:/workspace" -w /workspace \
+          # 容器里没装 git，build_info 的 git_sha 从宿主传进去
+          docker run --rm -v "$PWD:/workspace" -w /workspace -e GIT_SHA='${{ github.sha }}' \
             '${{ steps.image.outputs.ref }}' \
             bash scripts/pipeline.sh '${{ inputs.model }}' '${{ inputs.npu }}'
 

@@ -52,6 +52,8 @@ def main():
     ap.add_argument("--nbg", required=True)
     ap.add_argument("--qtype", required=True)
     ap.add_argument("--out", required=True)
+    ap.add_argument("--git-sha", default=None,
+                    help="容器里通常没装 git，由 workflow 从宿主传进来")
     ap.add_argument("--output-scale", type=float, default=None)
     ap.add_argument("--output-zero-point", type=int, default=None)
     args = ap.parse_args()
@@ -74,7 +76,7 @@ def main():
         "schema": cfg.get("schema"),
         "license": cfg.get("license"),
         "built_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "git_sha": git_sha(),
+        "git_sha": args.git_sha or git_sha(),
         "npu": {
             "target": args.npu,
             "optimize_string": args.vsconfig,
