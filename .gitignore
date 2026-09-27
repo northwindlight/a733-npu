@@ -7,6 +7,9 @@
 *.onnx
 *.data
 *.quantize
+*.pth
+*.pt
+*.ckpt
 
 # pegasus 中间产物
 models/*/wksp/
@@ -17,8 +20,13 @@ models/*/_raw/
 models/*/calib/
 models/*/dataset.txt
 models/*/*_inputmeta.yml
+models/*/build_info.json
+
+# models/*/*.json 是为了挡住 pegasus 生成的 <name>.json（acuity IR）。
+# ★加模型时最容易踩的坑：新建的 model.json 会被上面这条规则静默吞掉，
+#   本地 `git add` 看着成功、CI 上才发现文件不存在。所以必须显式放行：
 models/*/*.json
-!models/*/normalize.json
+!models/*/model.json
 
 # venv / python
 __pycache__/

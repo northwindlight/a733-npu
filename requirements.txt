@@ -1,0 +1,19 @@
+# 这些版本是 2026-09-27 那次成功产出 EDSR NBG 的实际解析结果，
+# 直接从 CI 日志里的 Downloading/Wheel 行读出来的，不是我猜的。
+#
+# 为什么必须全部 pin：本仓库的卖点就是可复现产物。
+# 真正会改变导出计算图的只有三个 —— torch（导出器）、super-image（模型定义与权重）、
+# onnx（算子/symbolic 映射）。其余 pin 住是为了让 CI 行为整体确定。
+
+torch==2.0.1
+super-image==0.2.0
+onnx==1.23.0
+onnxruntime==1.30.0
+pillow==12.3.0
+
+# torch 2.0.1 与 numpy 2.x 的互操作本身是有坑的（老版本会报 "Numpy is not available"）。
+# 这里实测可用，因为本仓库的导出路径不经过 torch↔numpy 互转：
+# dummy 输入是 torch tensor，np.random.randn 只喂给 onnxruntime 做空跑校验。
+numpy==2.4.6
+
+# 模型专属依赖放 models/<name>/requirements.txt，workflow 会自动追加安装。

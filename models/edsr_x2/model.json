@@ -1,0 +1,37 @@
+{
+  "schema": 1,
+  "_comment": "EDSR x2 (super-image / eugenesiow/edsr-base) → A733 NBG。加模型请照着本文件改：见 README「加一个模型」。",
+  "license": "Apache-2.0",
+
+  "onnx": {
+    "_comment": "from=script 表示 ONNX 由本目录下的 export.py 生成。也可用 from=file (path) 或 from=url (url+sha256)。",
+    "from": "script",
+    "route": "export.py"
+  },
+
+  "inputs": [
+    { "name": "input", "shape": [1, 3, 360, 640] }
+  ],
+  "outputs": ["output"],
+
+  "normalize": {
+    "_comment": "EDSR (super-image/eugenesiow/edsr-base) 训练时输入是 0..255 RGB，无归一化。",
+    "mean": [0, 0, 0],
+    "scale": [1.0, 1.0, 1.0],
+    "reverse_channel": false
+  },
+
+  "quant": { "qtype": "uint8", "quantizer": "asymmetric_affine" },
+
+  "npu": "v3",
+
+  "calib": {
+    "_comment": "DIV2K 验证集 0801 起 8 张，center-crop 到 360x640。allow_fallback=false：拉不到就硬失败，别静默换成噪声。",
+    "n": 8,
+    "source": "div2k",
+    "div2k_start": 801,
+    "size": [360, 640],
+    "seed": 0,
+    "allow_fallback": false
+  }
+}

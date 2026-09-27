@@ -1,68 +1,194 @@
-name: Build EDSR x2 NBG
+name: Build NBG
 
-# 镜像托管在 ghcr.io/northwindlight/ubuntu-npu (private)，CI 用 GITHUB_TOKEN 拉。
-# pegasus-convert 阶段需要 6G+ 内存、~4h CPU；GitHub 免费 runner (7G RAM / 14G SSD)
-# 刚好够用，如果 OOM 则改 runs-on 到付费 larger runner。
+# 手动触发。给定 models/<name>/ 目录，产出该模型的 NBG。
+#
+# 两个 job 刻意分开：
+#   validate  —— 便宜（~1 分钟），宿主机上跑，装 onnx/onnxruntime，把配置和 ONNX 的
+#                问题全挡在这里。docker pull 之前失败，比拉完 2.7 GB 再失败好得多。
+#   convert   —— 贵（分钟到小时级），拉镜像、量化、编译。
+#
+# ★不要把一个以上模型塞进同一个 job：GitHub 托管 runner 的作业硬上限是 6 小时
+#   （写 timeout-minutes: 720 也不会延长，实际封顶 360），而 EDSR 这一档就要吃掉大半。
 permissions:
   contents: read
-  packages: read
 
 on:
   workflow_dispatch:
     inputs:
-      resolution:
-        description: 'CHW (例如 3,360,640)'
-        default: '3,360,640'
+      model:
+        description: '模型名（models/ 下的目录名，如 edsr_x2 / animevideov3）'
+        required: true
         type: string
       npu:
-        description: 'NPU target (v1/v2/v3)'
+        description: 'NPU target（覆盖 model.json 里的 npu）'
+        required: true
         default: 'v3'
         type: choice
         options: [v1, v2, v3]
+      upload_release:
+        description: '把 NBG 挂到滚动 Release（模型名-NPU 为固定 tag，断点长期可用）'
+        required: true
+        default: true
+        type: boolean
 
 jobs:
-  export-onnx:
+  validate:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-python@v5
         with: { python-version: '3.11' }
-      - run: pip install torch==2.0.1 onnx onnxruntime super-image pillow
-      - run: python3 scripts/export_onnx.py --resolution '${{ inputs.resolution }}' --output edsr_x2.onnx
-      - uses: actions/upload-artifact@v4
-        with: { name: edsr-onnx, path: edsr_x2.onnx }
+      - name: 安装依赖（含模型专属 requirements.txt，若有）
+        run: |
+          set -euo pipefail
+          pip install -r requirements.txt
+          EXTRA="models/${{ inputs.model }}/requirements.txt"
+          if [ -f "$EXTRA" ]; then
+            echo "追加安装 $EXTRA"
+            pip install -r "$EXTRA"
+          fi
 
-  pegasus-convert:
-    needs: export-onnx
+      # 容器里是 Python 3.8。最容易的失败是写了 3.9+ 的语法
+      # （`list[str]`、`X | Y`、`dict | dict`），一路顺利到容器里才炸。
+      # 单独用 3.8 编译一遍全部脚本，把这类错误提前到这里。
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.8' }
+      - name: py_compile guard (容器是 3.8)
+        run: python3 -m py_compile scripts/*.py models/*/export.py
+
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.11' }
+
+      - name: 校验 model.json（ONNX 还不存在，先跳过 ONNX 侧）
+        run: python3 scripts/check_config.py --model '${{ inputs.model }}' --skip-onnx
+
+      - name: 物化 ONNX
+        id: onnx
+        run: |
+          set -euo pipefail
+          NAME='${{ inputs.model }}'
+          WORK="models/$NAME"
+          OUT="$WORK/$NAME.onnx"
+          KIND=$(python3 scripts/model_config.py "$WORK/model.json" onnx-from)
+
+          case "$KIND" in
+            script)
+              ROUTE=$(python3 scripts/model_config.py "$WORK/model.json" get onnx.route)
+              SHAPE=$(python3 scripts/model_config.py "$WORK/model.json" get inputs.0.shape)
+              # shape 是 [1,C,H,W]，export.py 要 CHW
+              CHW=$(python3 -c 'import json,sys; s=json.loads(sys.argv[1]); print(",".join(map(str,s[1:])))' "$SHAPE")
+              echo "跑 $WORK/$ROUTE --shape $CHW"
+              python3 "$WORK/$ROUTE" --shape "$CHW" --output "$OUT"
+              ;;
+            url)
+              URL=$(python3 scripts/model_config.py "$WORK/model.json" get onnx.url)
+              WANT=$(python3 scripts/model_config.py "$WORK/model.json" get onnx.sha256)
+              curl -fsSL --retry 3 -o "$OUT" "$URL"
+              GOT=$(sha256sum "$OUT" | cut -d' ' -f1)
+              [ "$GOT" = "$WANT" ] || { echo "sha256 不符：期望 $WANT 实际 $GOT" >&2; exit 1; }
+              ;;
+            file)
+              [ -s "$OUT" ] || { echo "onnx.from=file 但 $OUT 不存在（CI 里 file 来源需要文件已提交）" >&2; exit 1; }
+              ;;
+            *) echo "未知 onnx.from: $KIND" >&2; exit 1 ;;
+          esac
+          ls -l "$OUT"
+          echo "path=$OUT" >> "$GITHUB_OUTPUT"
+
+      - name: 校验 ONNX（IO 名 / opset / 类型 / 空跑）
+        run: python3 scripts/check_config.py --model '${{ inputs.model }}' --onnx '${{ steps.onnx.outputs.path }}'
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: onnx-${{ inputs.model }}
+          path: models/${{ inputs.model }}/${{ inputs.model }}.onnx
+
+  convert:
+    needs: validate
     runs-on: ubuntu-22.04
-    timeout-minutes: 720
+    timeout-minutes: 360          # GitHub 作业硬上限，写大了也没用
+    permissions:
+      contents: write             # Release 上传需要；只放宽这一个 job
+      packages: read              # 拉 ghcr 镜像需要
     steps:
       - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.11' }
 
       - uses: actions/download-artifact@v4
         with:
-          name: edsr-onnx
-          path: models/edsr_x2/
+          name: onnx-${{ inputs.model }}
+          path: models/${{ inputs.model }}/
+
+      - name: 读镜像引用（digest 钉住）
+        id: image
+        run: echo "ref=$(grep -vE '^\s*#|^\s*$' container.txt | head -1)" >> "$GITHUB_OUTPUT"
 
       - name: docker login ghcr
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
       - name: pull image
-        run: docker pull ghcr.io/northwindlight/ubuntu-npu:v2.0.10.1
+        run: docker pull '${{ steps.image.outputs.ref }}'
 
-      - name: prepare calibration
+      - name: 准备校准图
         run: |
-          docker run --rm -v "$PWD/models/edsr_x2:/wk" -w /wk \
-            ghcr.io/northwindlight/ubuntu-npu:v2.0.10.1 \
-            python3 prepare_calib.py --fallback-random --n 8
+          set -euo pipefail
+          NAME='${{ inputs.model }}'
+          # model_config 在宿主机上算 calib 参数（容器里也有 python3，但这样只需一处口径）
+          mapfile -t CALIB < <(python3 scripts/model_config.py "models/$NAME/model.json" calib-args)
+          ALLOW=$(python3 scripts/model_config.py "models/$NAME/model.json" get calib.allow_fallback || true)
+          EXTRA=()
+          # ★不要写成 `[ ... ] && EXTRA=(...)`：在 set -e 下，测试为假会让整条 && 列表
+          #   返回 1，脚本当场退出 —— 而那正是"没开 fallback"的正常情况。
+          if [ "$ALLOW" = "True" ]; then
+            EXTRA=(--fallback-random)
+          fi
+          # ★CWD 必须是模型目录：prepare_calib.py 把 dataset.txt 写成 './calib/<name>'，
+          #   消费方（pipeline.sh）同样以模型目录为 CWD。脚本已改为相对 CWD 而非自身路径。
+          docker run --rm -v "$PWD:/ws" -w "/ws/models/$NAME" \
+            '${{ steps.image.outputs.ref }}' \
+            python3 /ws/scripts/prepare_calib.py "${CALIB[@]}" "${EXTRA[@]}"
 
       - name: pegasus pipeline
         run: |
-          docker run --rm -v "$PWD:/workspace" \
-            ghcr.io/northwindlight/ubuntu-npu:v2.0.10.1 \
-            bash /workspace/scripts/pipeline.sh edsr_x2 ${{ inputs.npu }}
+          docker run --rm -v "$PWD:/workspace" -w /workspace \
+            '${{ steps.image.outputs.ref }}' \
+            bash scripts/pipeline.sh '${{ inputs.model }}' '${{ inputs.npu }}'
+
+      - name: 汇总产物信息
+        run: |
+          NAME='${{ inputs.model }}'
+          echo "### NBG: $NAME / ${{ inputs.npu }}" >> "$GITHUB_STEP_SUMMARY"
+          echo '```json' >> "$GITHUB_STEP_SUMMARY"
+          cat "models/$NAME/build_info.json" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: edsr-nbg-${{ inputs.npu }}
-          path: models/edsr_x2/wksp/**/*.nb
+          name: nbg-${{ inputs.model }}-${{ inputs.npu }}
+          path: |
+            models/${{ inputs.model }}/wksp/**/*.nb
+            models/${{ inputs.model }}/build_info.json
+
+      # 滚动 Release：tag 固定为 nbg-<model>-<npu>，每次重建覆盖同名附件。
+      # 这样板子上用的下载 URL 长期不变 —— CI artifact 90 天就过期了。
+      - name: 上传到 Release
+        if: ${{ inputs.upload_release }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          NAME='${{ inputs.model }}'
+          TAG="nbg-$NAME-${{ inputs.npu }}"
+          # 不用 `find | sort | head -1`：pipefail 下 sort 被 SIGPIPE 杀掉会静默中止
+          mapfile -t NBS < <(find "models/$NAME/wksp" -type f -name '*.nb' -print | sort)
+          [ "${#NBS[@]}" -ge 1 ] || { echo "没找到 .nb" >&2; exit 1; }
+          [ "${#NBS[@]}" -eq 1 ] || echo "WARN: 有 ${#NBS[@]} 个 .nb，取第一个：${NBS[0]}" >&2
+          cp "${NBS[0]}" "network_binary.nb"
+          gh release view "$TAG" >/dev/null 2>&1 || \
+            gh release create "$TAG" --title "$NAME NBG (${{ inputs.npu }})" \
+              --notes "由 Build NBG workflow 生成；同名附件每次重建覆盖。见 build_info.json。"
+          gh release upload "$TAG" network_binary.nb models/$NAME/build_info.json --clobber
+          echo "Release: https://github.com/${{ github.repository }}/releases/download/$TAG/network_binary.nb" >> "$GITHUB_STEP_SUMMARY"
