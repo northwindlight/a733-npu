@@ -99,10 +99,15 @@ class SRVGGNetCompact(nn.Module):
 
 # ---------------------------------------------------------------------------
 
+# 下面三组是 realesr-animevideov3 的值（本脚本的默认）。别的权重由
+# models/<name>/export.py 这个薄壳按 --weights-url/--weights-sha256/
+# --weights-size/--num-conv 覆盖后调用本脚本 —— 同架构的模型因此不用复制这份代码。
 WEIGHTS_URL = ("https://github.com/xinntao/Real-ESRGAN/releases/download/"
                "v0.2.5.0/realesr-animevideov3.pth")
 WEIGHTS_SHA256 = "b8a8376811077954d82ca3fcf476f1ac3da3e8a68a4f4d71363008000a18b75d"
 WEIGHTS_SIZE = 2504012
+WEIGHTS_NAME = "realesr-animevideov3.pth"
+NUM_CONV = 16
 
 
 def sha256_of(path):
@@ -113,20 +118,20 @@ def sha256_of(path):
     return h.hexdigest()
 
 
-def fetch_weights(dest):
-    if dest.exists() and sha256_of(dest) == WEIGHTS_SHA256:
+def fetch_weights(dest, url, sha, size):
+    if dest.exists() and sha256_of(dest) == sha:
         print("权重已缓存且哈希正确：%s" % dest)
         return dest
-    print("下载 %s" % WEIGHTS_URL)
-    urllib.request.urlretrieve(WEIGHTS_URL, dest)
+    print("下载 %s" % url)
+    urllib.request.urlretrieve(url, dest)
     got = sha256_of(dest)
-    if got != WEIGHTS_SHA256:
+    if got != sha:
         if dest.exists():            # 不用 missing_ok=，那是 Python 3.9+ 的 API
             dest.unlink()
         sys.exit("权重 sha256 不符：\n  期望 %s\n  实际 %s\n"
-                 "上游换了文件，或下载被截断。已删除该文件。" % (WEIGHTS_SHA256, got))
-    if dest.stat().st_size != WEIGHTS_SIZE:
-        sys.exit("权重大小异常：%d（期望 %d）" % (dest.stat().st_size, WEIGHTS_SIZE))
+                 "上游换了文件，或下载被截断。已删除该文件。" % (sha, got))
+    if dest.stat().st_size != size:
+        sys.exit("权重大小异常：%d（期望 %d）" % (dest.stat().st_size, size))
     return dest
 
 
@@ -137,18 +142,26 @@ def main():
     ap.add_argument("--scale", type=int, default=4,
                     help="v3 官方只发 x4；x2/x3 的 ncnn 版本只是 x4 加了个缩放，不是独立模型")
     ap.add_argument("--weights", default=None, help="本地 .pth 路径（默认下载到本目录）")
+    ap.add_argument("--weights-url", default=WEIGHTS_URL)
+    ap.add_argument("--weights-sha256", default=WEIGHTS_SHA256)
+    ap.add_argument("--weights-size", type=int, default=WEIGHTS_SIZE)
+    ap.add_argument("--weights-name", default=WEIGHTS_NAME)
+    ap.add_argument("--num-conv", type=int, default=NUM_CONV,
+                    help="SRVGGNetCompact 的 body 卷积层数：animevideov3=16，realesr-general-x4v3=32")
     args = ap.parse_args()
 
     c, h, w = (int(x) for x in args.shape.split(","))
 
     here = Path(__file__).resolve().parent
-    wpath = Path(args.weights) if args.weights else here / "realesr-animevideov3.pth"
-    fetch_weights(wpath)
+    wpath = Path(args.weights) if args.weights else here / args.weights_name
+    fetch_weights(wpath, args.weights_url, args.weights_sha256, args.weights_size)
 
-    model = SRVGGNetCompact(num_in_ch=3, num_out_ch=3, num_feat=64, num_conv=16,
+    model = SRVGGNetCompact(num_in_ch=3, num_out_ch=3, num_feat=64,
+                            num_conv=args.num_conv,
                             upscale=args.scale, act_type='prelu')
     ckpt = torch.load(str(wpath), map_location="cpu")
     # 官方 .pth 是完整 checkpoint，key 视发布版本可能是 params_ema 或 params
+    # 官方两种发布都有：animevideov3 是 params_ema，general-x4v3 是 params
     key = "params_ema" if "params_ema" in ckpt else "params"
     model.load_state_dict(ckpt[key], strict=True)
     model.eval()
