@@ -3,7 +3,7 @@
   "_comment": "Real-ESRGAN realesr-general-x4v3 (x4) —— 实拍向模型，用来治 animevideov3 的『油画感』。同架构（SRVGGNetCompact），num_conv 16→32，约 2× 慢。NBG 编译流程与板端 srpipe 全部不用改。 编译形状 352×224 -> 1408×896：按分块代价反推（每块 NPU 代价固定 ⇒ 整帧 = 块数×常数），core 320×192 能把 960×540 压到 3×3=9 块。",
   "license": "BSD-3-Clause",
   "onnx": {
-    "_comment": "复用隔壁 realesr_general/ 的导出脚本（同一套权重、同一个架构、同一个权重 sha256）。",
+    "_comment": "复用隔壁 realesr_general/ 的导出脚本（同一套权重、同一个架构、同一个权重 sha256）。 复用隔壁 realesr_general/ 的导出脚本（同一套权重）。",
     "from": "script",
     "route": "../realesr_general/export.py"
   },
