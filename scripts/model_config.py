@@ -174,15 +174,37 @@ def cmd_calib_args(data, path):
 
 
 def cmd_get(data, path, key):
+    """点号路径取值，例如 quant.qtype / onnx.route / inputs.0.shape。
+
+    数组用数字下标（inputs.0.shape）—— 只支持 dict 键会让 inputs.0.shape 直接失败。
+    """
     node = data
     for part in key.split("."):
-        if not isinstance(node, dict) or part not in node:
-            raise ConfigError("%s: 没有键 '%s'（在 '%s' 处走不下去）" % (path, key, part))
-        node = node[part]
+        if isinstance(node, dict):
+            if part not in node:
+                raise ConfigError("%s: 没有键 '%s'（在 '%s' 处走不下去）" % (path, key, part))
+            node = node[part]
+        elif isinstance(node, list):
+            try:
+                idx = int(part)
+            except ValueError:
+                raise ConfigError("%s: '%s' 的 '%s' 需要数组下标，实际不是整数"
+                                  % (path, key, part))
+            if not 0 <= idx < len(node):
+                raise ConfigError("%s: '%s' 的下标 %d 越界（数组长度 %d）"
+                                  % (path, key, idx, len(node)))
+            node = node[idx]
+        else:
+            raise ConfigError("%s: '%s' 走到 %r 就下不去了（既不是对象也不是数组）"
+                              % (path, key, node))
     if isinstance(node, (dict, list)):
         return [json.dumps(node, ensure_ascii=False)]
     if node is None:
         return [""]
+    if isinstance(node, bool):
+        # 用 Python 的 True/False 而不是 JSON 的 true/false：
+        # workflow 里用 `[ "$X" = "True" ]` 判断，口径保持一致
+        return [str(node)]
     return [str(node)]
 
 

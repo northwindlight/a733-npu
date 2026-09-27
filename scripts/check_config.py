@@ -126,6 +126,21 @@ def check_manifest(root, name):
         except AttributeError:
             pass
 
+    # workflow 与 pipeline.sh 会按这些点号路径取值。路径写错（例如把数组当对象取）
+    # 只有在跑到那一步才炸 —— 这里提前全走一遍。
+    for key in ("inputs.0.shape", "quant.qtype", "calib.allow_fallback"):
+        try:
+            model_config.cmd_get(data, cfg_path, key)
+        except model_config.ConfigError as exc:
+            err(str(exc))
+    kind = data.get("onnx", {}).get("from") if isinstance(data.get("onnx"), dict) else None
+    for key in ({"script": ["onnx.route"], "url": ["onnx.url", "onnx.sha256"],
+                 "file": ["onnx.path"]}.get(kind, [])):
+        try:
+            model_config.cmd_get(data, cfg_path, key)
+        except model_config.ConfigError as exc:
+            err(str(exc))
+
     # normalize 长度必须等于输入通道数（patch_inputmeta 依赖这条不变量）
     try:
         c = model_config._input_shapes(data, cfg_path)[0][1][0]

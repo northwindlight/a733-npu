@@ -32,7 +32,23 @@ on:
         type: boolean
 
 jobs:
+  # 容器里是 Python 3.8。最容易的失败是写了 3.9+ 的语法
+  # （`list[str]`、`X | Y`、`dict | dict`），本地用 3.11 跑没事、一路顺利到容器里才炸。
+  #
+  # ★单独一个 job，不是为了并行，是因为 actions/setup-python 切到 3.8 之后会把
+  #   /opt/hostedtoolcache/Python/3.8.x/lib 追加进 LD_LIBRARY_PATH 并**一直留在
+  #   后续步骤的环境里** —— 让 3.11 的 python3 去加载 3.8 的 .so。job 之间环境隔离。
+  syntax:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.8' }
+      - name: py_compile guard (容器是 3.8)
+        run: python3 -m py_compile scripts/*.py models/*/export.py
+
   validate:
+    needs: syntax
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
@@ -48,17 +64,6 @@ jobs:
             echo "追加安装 $EXTRA"
             pip install -r "$EXTRA"
           fi
-
-      # 容器里是 Python 3.8。最容易的失败是写了 3.9+ 的语法
-      # （`list[str]`、`X | Y`、`dict | dict`），一路顺利到容器里才炸。
-      # 单独用 3.8 编译一遍全部脚本，把这类错误提前到这里。
-      - uses: actions/setup-python@v5
-        with: { python-version: '3.8' }
-      - name: py_compile guard (容器是 3.8)
-        run: python3 -m py_compile scripts/*.py models/*/export.py
-
-      - uses: actions/setup-python@v5
-        with: { python-version: '3.11' }
 
       - name: 校验 model.json（ONNX 还不存在，先跳过 ONNX 侧）
         run: python3 scripts/check_config.py --model '${{ inputs.model }}' --skip-onnx
