@@ -18,31 +18,62 @@ usage:
 from __future__ import annotations
 
 import argparse
-import io
 import os
+import re
+import shutil
 import sys
 import urllib.request
+import zipfile
 from pathlib import Path
 
 import numpy as np
 from PIL import Image
 
-DIV2K_BASE = "https://data.vision.ee.ethz.ch/cvl/DIV2K/validation_release/DIV2K_valid_HR/"
+# ★DIV2K 现在**只发 zip**，逐文件路径（validation_release/DIV2K_valid_HR/0801.png）
+#   上游已经取消了，实测 404。历史上这个脚本就是用那个逐文件路径下载的，
+#   而旧 workflow 传了 --fallback-random，于是失败被静默降级成随机噪声 ——
+#   也就是说那之前所有 NBG 都是拿噪声校准的，从产物上完全看不出来。
+#   别改回逐文件下载。
+#
+#   选 X4 而不是 X2：X4 的 zip 是 30 MB，X2 是 112 MB。代价是 X4 的图只有 510x270，
+#   给 640x360 的模型用需要先放大（见 crop()）—— 校准只关心激活值分布，
+#   这点缩放可以接受，比每次 CI 多下 82 MB 划算。
+DIV2K_ZIP = ("https://data.vision.ee.ethz.ch/cvl/DIV2K/"
+             "DIV2K_valid_LR_bicubic_X4.zip")
 IMG_EXT = (".png", ".jpg", ".jpeg", ".bmp", ".webp")
 
 
+def _div2k_index(member):
+    """'DIV2K_valid_LR_bicubic/X4/0801x4.png' -> 801"""
+    m = re.match(r"(\d+)", Path(member).stem)
+    return int(m.group(1)) if m else None
+
+
 def fetch_div2k(raw_dir, n, start):
+    """从 DIV2K 的 zip 里取编号 [start, start+n) 的图，缓存整包在 _raw/。"""
     raw_dir.mkdir(parents=True, exist_ok=True)
+    zpath = raw_dir / Path(DIV2K_ZIP).name
+    if not zpath.exists():
+        print("  fetch %s（约 30 MB，缓存在 %s）" % (DIV2K_ZIP, zpath))
+        urllib.request.urlretrieve(DIV2K_ZIP, zpath)
+
     saved = []
-    for i in range(start, start + n):
-        url = "%s%04d.png" % (DIV2K_BASE, i)
-        out = raw_dir / ("%04d.png" % i)
-        if not out.exists():
-            print("  fetch %s" % url)
-            with urllib.request.urlopen(url, timeout=60) as r:
-                data = r.read()
-            Image.open(io.BytesIO(data)).convert("RGB").save(out)
-        saved.append(out)
+    with zipfile.ZipFile(zpath) as zf:
+        members = []
+        for name in zf.namelist():
+            idx = _div2k_index(name)
+            if idx is not None and start <= idx < start + n:
+                members.append((idx, name))
+        members.sort()
+        if len(members) < n:
+            raise OSError("zip 里只找到 %d 张编号在 [%d, %d) 的图，需要 %d 张 —— "
+                          "上游可能改了目录结构" % (len(members), start, start + n, n))
+        for idx, name in members[:n]:
+            out = raw_dir / ("%04d.png" % idx)
+            if not out.exists():
+                with zf.open(name) as src, open(out, "wb") as dst:
+                    shutil.copyfileobj(src, dst)
+            saved.append(out)
     return saved
 
 
