@@ -11,9 +11,7 @@ onnx==1.23.0
 onnxruntime==1.30.0
 pillow==12.3.0
 
-# torch 2.0.1 与 numpy 2.x 的互操作本身是有坑的（老版本会报 "Numpy is not available"）。
-# 这里实测可用，因为本仓库的导出路径不经过 torch↔numpy 互转：
-# dummy 输入是 torch tensor，np.random.randn 只喂给 onnxruntime 做空跑校验。
-numpy==2.4.6
+# 导出后逐值比较 PyTorch / ONNX Runtime，torch 2.0.1 的 numpy 桥要求 numpy 1.x。
+numpy==1.26.4
 
 # 模型专属依赖放 models/<name>/requirements.txt，workflow 会自动追加安装。

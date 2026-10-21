@@ -11,6 +11,15 @@ ONNX (opset 11) → pegasus/acuity → 量化 → NBG 单 .nb 文件 → A733 �
 
 ---
 
+## AnimeJaNai 原生 x2
+
+`models/animejanai_v3_x2`：the-database 的 AnimeJaNai HD V3 UltraCompact，
+2024-01-17 版，64 特征 / 8 层主体卷积，输入 352×224，输出 704×448。
+适用于原生 2 倍动画放大，MMD 与字幕需在目标板上用实际素材验收。
+权重与转换产物遵守 **CC-BY-NC-SA-4.0**；署名 the-database，修改为静态 ONNX 和 A733 uint8 NBG。
+[原作者发布与权重](https://github.com/the-database/mpv-AnimeJaNai/releases/tag/3.0.0)。
+导出脚本校验发布包及权重 SHA256，并逐值比较 PyTorch / ORT。板端必须使用 RGB 通道顺序。
+
 ## 实测性能
 
 **测量条件（缺一不可，否则数字不可比）**：NPU governor=performance @1008 MHz，

@@ -1,0 +1,53 @@
+{
+  "schema": 1,
+  "_comment": "the-database AnimeJaNai HD V3 UltraCompact (2024-01-17), native x2, 64 features / 8 body convolutions. Credit: https://github.com/the-database/mpv-AnimeJaNai/releases/tag/3.0.0 . Modified: ONNX export and A733 uint8 quantization; weights CC-BY-NC-SA-4.0.",
+  "license": "CC-BY-NC-SA-4.0",
+  "onnx": {
+    "from": "script",
+    "route": "export.py"
+  },
+  "inputs": [
+    {
+      "name": "input",
+      "shape": [
+        1,
+        3,
+        224,
+        352
+      ]
+    }
+  ],
+  "outputs": [
+    "output"
+  ],
+  "normalize": {
+    "_comment": "同 animevideov3/：pegasus 算 (pixel - mean) * scale，pixel 是 0..255 的 uint8，Real-ESRGAN 推理时 /255。",
+    "mean": [
+      0,
+      0,
+      0
+    ],
+    "scale": [
+      0.00392156862745098,
+      0.00392156862745098,
+      0.00392156862745098
+    ],
+    "reverse_channel": false
+  },
+  "quant": {
+    "qtype": "uint8",
+    "quantizer": "asymmetric_affine"
+  },
+  "npu": "v3",
+  "calib": {
+    "n": 16,
+    "source": "div2k",
+    "div2k_start": 801,
+    "size": [
+      224,
+      352
+    ],
+    "seed": 0,
+    "allow_fallback": false
+  }
+}

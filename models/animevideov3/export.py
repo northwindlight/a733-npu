@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import inspect
 import sys
 import urllib.request
 from pathlib import Path
@@ -159,11 +160,11 @@ def main():
     model = SRVGGNetCompact(num_in_ch=3, num_out_ch=3, num_feat=64,
                             num_conv=args.num_conv,
                             upscale=args.scale, act_type='prelu')
-    ckpt = torch.load(str(wpath), map_location="cpu")
+    ckpt = torch.load(str(wpath), map_location="cpu", weights_only=True)
     # 官方 .pth 是完整 checkpoint，key 视发布版本可能是 params_ema 或 params
     # 官方两种发布都有：animevideov3 是 params_ema，general-x4v3 是 params
-    key = "params_ema" if "params_ema" in ckpt else "params"
-    model.load_state_dict(ckpt[key], strict=True)
+    key = "params_ema" if "params_ema" in ckpt else ("params" if "params" in ckpt else None)
+    model.load_state_dict(ckpt[key] if key else ckpt, strict=True)
     model.eval()
     print("权重 key=%s，参数量 %.2f M" % (key, sum(p.numel() for p in model.parameters()) / 1e6))
 
@@ -171,8 +172,9 @@ def main():
     # torch >= 2.6 默认走 dynamo 导出路径（符号映射表不同）。这里 pin 的是 2.0.1，
     # 默认就是 TorchScript 导出器 —— 本文档开头引用的 DepthToSpace(CRD) 映射
     # 正是那条路径的行为。若将来升级 torch，请显式传 dynamo=False 保持同一路径。
+    export_options = {"dynamo": False} if "dynamo" in inspect.signature(torch.onnx.export).parameters else {}
     torch.onnx.export(model, dummy, args.output, opset_version=11,
-                      input_names=["input"], output_names=["output"])
+                      input_names=["input"], output_names=["output"], **export_options)
 
     m = onnx.load(args.output)
     print("opset: %d" % m.opset_import[0].version)
@@ -193,8 +195,12 @@ def main():
                  "检查 torch/onnx 版本。")
 
     sess = ort.InferenceSession(args.output)
-    x = np.random.randn(1, c, h, w).astype(np.float32)
+    x = np.random.default_rng(0).random((1, c, h, w)).astype(np.float32)
     y = sess.run(None, {"input": x})
+    with torch.no_grad():
+        reference = model(torch.from_numpy(x)).numpy()
+    np.testing.assert_allclose(y[0], reference, rtol=1e-4, atol=1e-5)
+    print("PyTorch / ORT max error: %.8f" % np.max(np.abs(y[0] - reference)))
     print("OK: %s -> %s  (%.1f KiB)"
           % (x.shape, y[0].shape, Path(args.output).stat().st_size / 1024))
 
