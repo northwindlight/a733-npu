@@ -20,6 +20,13 @@ ONNX (opset 11) → pegasus/acuity → 量化 → NBG 单 .nb 文件 → A733 �
 [原作者发布与权重](https://github.com/the-database/mpv-AnimeJaNai/releases/tag/3.0.0)。
 导出脚本校验发布包及权重 SHA256，并逐值比较 PyTorch / ORT。板端必须使用 RGB 通道顺序。
 
+板端数值闸已实现：`scripts/compare_nbg.py --onnx model.onnx --input tile.png --actual tile.out --min-psnr 40`。
+输入需等于 NBG 块尺寸，srpipe 单块、margin=0、不锐化、不转 NV12，输出为 gbrp。
+同一命令加 `--scramble-reference` 模拟 CRD/DCR 错序，必须失败。
+AnimeJaNai 真机对照 44.64 dB / MAE 0.97；旧 GBR 通道路径 34.50 dB；错序模拟 13.97 dB。
+这是 NBG 与同模型浮点参考的数值一致性，不能当作超分相对真实高清图的画质评分。
+板端可直接查询 NBG 内嵌量化参数（VIP/awnn）；不得把 sidecar 中未回填的 null 当作 1/0。
+
 ## 实测性能
 
 **测量条件（缺一不可，否则数字不可比）**：NPU governor=performance @1008 MHz，
