@@ -150,19 +150,19 @@ def cmd_calib_args(data, path):
                 % (path, size, want_h, want_w))
 
     source = calib.get("source")
-    if source == "div2k":
-        src_tok = "div2k"
+    if source in ("div2k", "div2k_text"):
+        src_tok = source
     elif source == "random":
         src_tok = "random"
     elif isinstance(source, str) and source.startswith("dir:"):
         src_tok = source
     else:
         raise ConfigError(
-            "%s: calib.source 必须是 \"div2k\" / \"random\" / \"dir:<相对路径>\"，实际 %r"
+            "%s: calib.source 必须是 \"div2k\" / \"div2k_text\" / \"random\" / \"dir:<相对路径>\"，实际 %r"
             % (path, source))
 
     toks = ["--n", str(n), "--h", str(h), "--w", str(w), "--source", src_tok]
-    if source == "div2k":
+    if source in ("div2k", "div2k_text"):
         start = calib.get("div2k_start", 801)
         if not isinstance(start, int) or start < 1:
             raise ConfigError("%s: calib.div2k_start 必须是正整数" % path)

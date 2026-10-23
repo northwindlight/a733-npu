@@ -13,7 +13,7 @@
   "quant": {"qtype": "int16", "quantizer": "dynamic_fixed_point"},
   "npu": "v3",
   "calib": {
-    "n": 16, "source": "div2k", "div2k_start": 801,
+    "n": 32, "source": "div2k_text", "div2k_start": 801,
     "size": [224, 352], "seed": 0, "allow_fallback": false
   }
 }

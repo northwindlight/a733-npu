@@ -27,7 +27,7 @@ import zipfile
 from pathlib import Path
 
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 
 # ★DIV2K 现在**只发 zip**，逐文件路径（validation_release/DIV2K_valid_HR/0801.png）
 #   上游已经取消了，实测 404。历史上这个脚本就是用那个逐文件路径下载的，
@@ -110,6 +110,37 @@ def crop(images, out_dir, h, w):
     return paths
 
 
+def augment_text(paths):
+    """Keep the first half natural; add high-contrast text to the second half.
+
+    Bicubic DIV2K crops alone under-represent subtitle strokes. Use a bundled
+    Pillow font so calibration does not depend on fonts installed on the host.
+    These are calibration patterns, not the held-out board validation images.
+    """
+    font = ImageFont.load_default()
+    for i, path in enumerate(paths[len(paths) // 2:]):
+        im = Image.open(path).convert('RGB')
+        w, h = im.size
+        mask = Image.new('L', (w, 20), 0)
+        ImageDraw.Draw(mask).text((2, 1), 'Calibration 0123456789 ABC xyz !?',
+                                 font=font, fill=255)
+        height = min(h // 3, 20 + 8 * (i % 3))
+        mask = mask.resize((w, height), Image.BICUBIC)
+        y = max(0, h - height - 10) if i % 2 else h // 2
+        dark = i % 4 < 2
+        draw = ImageDraw.Draw(im)
+        draw.rectangle((0, y, w - 1, min(h - 1, y + height)),
+                       fill=(0, 0, 0) if dark else (255, 255, 255))
+        im.paste((255, 255, 255) if dark else (0, 0, 0), (0, y), mask)
+        # Include one-pixel strokes, in addition to antialiased glyphs.
+        draw = ImageDraw.Draw(im)
+        for x in range(8, min(w, 72), 8):
+            draw.line((x, 4, x, min(h - 1, 32)), fill='white' if x % 16 else 'black')
+        im.save(path)
+    print('subtitle calibration augmentation: %d/%d images' %
+          (len(paths) - len(paths) // 2, len(paths)))
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default="calib",
@@ -118,7 +149,7 @@ def main():
     ap.add_argument("--h", type=int, default=360)
     ap.add_argument("--w", type=int, default=640)
     ap.add_argument("--source", default="div2k",
-                    help="div2k / random / dir:<相对路径>")
+                    help="div2k / div2k_text / random / dir:<相对路径>")
     ap.add_argument("--div2k-start", type=int, default=801)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--fallback-random", action="store_true",
@@ -149,7 +180,7 @@ def main():
                      % (src, len(imgs), args.n))
         paths = crop(imgs[:args.n], out, args.h, args.w)
 
-    elif args.source == "div2k":
+    elif args.source in ("div2k", "div2k_text"):
         # ★只捕获 fetch 段。`except OSError` 覆盖 urllib.error.URLError（其子类）、
         #   ConnectionError，以及 **Python 3.8 的 socket.timeout** —— 3.8 里
         #   socket.timeout 还不是 TimeoutError 的别名（3.10 才合并），
@@ -170,7 +201,10 @@ def main():
         else:
             paths = crop(raws, out, args.h, args.w)   # ← 在 try 之外
     else:
-        sys.exit("--source 必须是 div2k / random / dir:<相对路径>，实际 %r" % args.source)
+        sys.exit("--source 必须是 div2k / div2k_text / random / dir:<相对路径>，实际 %r" % args.source)
+
+    if args.source == 'div2k_text':
+        augment_text(paths)
 
     dataset_txt = cwd / "dataset.txt"
     dataset_txt.write_text("\n".join("./%s/%s" % (args.out, p.name) for p in paths) + "\n")

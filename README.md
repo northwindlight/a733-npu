@@ -16,7 +16,9 @@ ONNX (opset 11) → pegasus/acuity → 量化 → NBG 单 .nb 文件 → A733 �
 `models/realesrgan_x2plus`：官方 **RealESRGAN_x2plus**，原生 x2，
 23 个 RRDB 块、64 特征，约 16.7M 参数。它与 `realesr-general-x4v3`
 小型 SRVGG 是不同的网络，不能用后者的速度或画质代替验收。
-输入 352×224，输出 704×448，DIV2K 16 张图校准，INT16 动态定点量化。
+输入 352×224，输出 704×448，INT16 动态定点量化。
+校准为 DIV2K 32 张图：前 16 张自然图像，后 16 张叠加高反差字幕与细线，
+补充低分辨率 bicubic 自然图像缺少的笔画分布（`calib.source=div2k_text`）。
 首轮 uint8 在实际素材上的 NBG / ONNX 仅为 31.80–38.63 dB，未通过 40 dB 精度闸，
 不作为部署版本。随后发现旧流水线未传 `--iterations`，Pegasus 默认仅校准 1 次，
 准备 16 张图并不等于实际使用 16 张；现显式 batch=1、iterations=calib.n。
@@ -223,7 +225,8 @@ cat models/$NAME/build_info.json
 - **`normalize.mean` / `scale` 的长度必须等于输入通道数**，`reverse_channel` **没有默认值**
   —— 拼错成 `revers_channel` 会让它静默按 RGB 编译出通道颠倒的模型，所以缺了就硬失败。
 - **`calib.size` 是 `[H, W]`**（不是 CHW！），且必须等于输入形状的 H、W。
-- **`calib.source`**：`"div2k"` / `"random"` / `"dir:<相对路径>"`。
+- **`calib.source`**：`"div2k"` / `"div2k_text"` / `"random"` / `"dir:<相对路径>"`。
+  `div2k_text` 保留前半自然图，给后半加确定性的字幕和细线，用于覆盖高反差笔画。
   `allow_fallback: true` 才会在 DIV2K 拉不到时降级成随机噪声（**产出的 NBG 质量不可信，
   而且从产物上看不出来**）—— 只在验证流程时开。
 - **`quant.qtype`**：`uint8` 或 `int16`。这片的 NN 引擎 INT8 和 INT16 都是 8 核

@@ -88,6 +88,8 @@ def main():
         "quant": {
             "qtype": args.qtype,
             "quantizer": cfg.get("quant", {}).get("quantizer"),
+            "iterations": cfg.get("calib", {}).get("n"),
+            "batch_size": 1,
         },
         "calib": {
             "declared_source": cfg.get("calib", {}).get("source"),
