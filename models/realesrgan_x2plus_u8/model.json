@@ -1,0 +1,52 @@
+{
+  "schema": 1,
+  "_comment": "Controlled UINT8 comparison: identical official RRDB weights, ONNX and 32-image subtitle calibration. Not approved for deployment until the same board accuracy gate passes.",
+  "license": "BSD-3-Clause",
+  "onnx": {
+    "from": "script",
+    "route": "../realesrgan_x2plus/export.py"
+  },
+  "inputs": [
+    {
+      "name": "input",
+      "shape": [
+        1,
+        3,
+        224,
+        352
+      ]
+    }
+  ],
+  "outputs": [
+    "output"
+  ],
+  "normalize": {
+    "mean": [
+      0,
+      0,
+      0
+    ],
+    "scale": [
+      0.00392156862745098,
+      0.00392156862745098,
+      0.00392156862745098
+    ],
+    "reverse_channel": false
+  },
+  "quant": {
+    "qtype": "uint8",
+    "quantizer": "asymmetric_affine"
+  },
+  "npu": "v3",
+  "calib": {
+    "n": 32,
+    "source": "div2k_text",
+    "div2k_start": 801,
+    "size": [
+      224,
+      352
+    ],
+    "seed": 0,
+    "allow_fallback": false
+  }
+}
