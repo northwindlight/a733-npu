@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "_comment": "Official RealESRGAN_x2plus, 23 RRDB blocks, native x2. Input unshuffle folded exactly into first convolution. BSD-3-Clause weights, BasicSR Apache-2.0 architecture; see NOTICE. Quality and seams require actual board validation.",
+  "license": "BSD-3-Clause",
+  "onnx": {"from": "script", "route": "export.py"},
+  "inputs": [{"name": "input", "shape": [1, 3, 224, 352]}],
+  "outputs": ["output"],
+  "normalize": {
+    "mean": [0, 0, 0],
+    "scale": [0.00392156862745098, 0.00392156862745098, 0.00392156862745098],
+    "reverse_channel": false
+  },
+  "quant": {"qtype": "uint8", "quantizer": "asymmetric_affine"},
+  "npu": "v3",
+  "calib": {
+    "n": 16, "source": "div2k", "div2k_start": 801,
+    "size": [224, 352], "seed": 0, "allow_fallback": false
+  }
+}

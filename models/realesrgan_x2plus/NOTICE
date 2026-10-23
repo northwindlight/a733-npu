@@ -1,0 +1,11 @@
+RealESRGAN_x2plus weights: Copyright (c) 2021, Xintao Wang, BSD-3-Clause.
+Source: https://github.com/xinntao/Real-ESRGAN/releases/tag/v0.2.1
+License reproduced in LICENSE.weights.
+
+RRDBNet architecture adapted from BasicSR, Apache-2.0.
+Source: https://github.com/XPixelGroup/BasicSR/blob/8d56e3a045f9fb3e1d8872f92ee4a4f07f886b0a/basicsr/archs/rrdbnet_arch.py
+License reproduced in LICENSE.basicsr.
+
+Modifications: dependency-free static export; exact folding of input
+pixel-unshuffle into the first strided convolution; numerical export gates;
+DIV2K calibration and A733 quantized NBG compilation.

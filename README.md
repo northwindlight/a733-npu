@@ -11,6 +11,19 @@ ONNX (opset 11) → pegasus/acuity → 量化 → NBG 单 .nb 文件 → A733 �
 
 ---
 
+## RealESRGAN x2plus 画质优先候选
+
+`models/realesrgan_x2plus`：官方 **RealESRGAN_x2plus**，原生 x2，
+23 个 RRDB 块、64 特征，约 16.7M 参数。它与 `realesr-general-x4v3`
+小型 SRVGG 是不同的网络，不能用后者的速度或画质代替验收。
+输入 352×224，输出 704×448，DIV2K 16 张图校准；板端重叠量需用实际输出验证。
+权重 SHA256：`49fafd45f8fd7aa8d31ab2a22d14d91b536c34494a5cfe31eb5d89c2fa266abb`。
+
+导出把输入 pixel-unshuffle 与第一层卷积等价合并为 6×6 / stride 2 卷积，
+避免转换器处理六维 reshape；导出时检查原始网络、合并网络及 ONNX 的数值一致性。
+权重 BSD-3-Clause，架构源自 BasicSR（Apache-2.0），完整许可和出处在模型目录。
+转换成功仅证明产物能生成，部署前仍需板端精度、分块接缝和原片观感对照。
+
 ## AnimeJaNai 原生 x2
 
 `models/animejanai_v3_x2`：the-database 的 AnimeJaNai HD V3 UltraCompact，
