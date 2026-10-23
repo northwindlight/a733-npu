@@ -10,7 +10,7 @@
     "scale": [0.00392156862745098, 0.00392156862745098, 0.00392156862745098],
     "reverse_channel": false
   },
-  "quant": {"qtype": "uint8", "quantizer": "asymmetric_affine"},
+  "quant": {"qtype": "int16", "quantizer": "dynamic_fixed_point"},
   "npu": "v3",
   "calib": {
     "n": 16, "source": "div2k", "div2k_start": 801,
