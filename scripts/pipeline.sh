@@ -81,6 +81,7 @@ PEGASUS="python3 $ACUITY_PATH/pegasus.py"
 
 # 量化精度来自 model.json；_uint8/_int16 后缀决定中间产物名
 QTYPE=$(cfg get quant.qtype)
+CALIB_N=$(cfg get calib.n)
 QSUFFIX="$QTYPE"
 QNAME="${NAME}_${QSUFFIX}.quantize"
 
@@ -122,6 +123,8 @@ $PEGASUS quantize \
     --model         "$NAME.json" \
     --model-data    "$NAME.data" \
     --device        CPU \
+    --batch-size    1 \
+    --iterations    "$CALIB_N" \
     --with-input-meta "${NAME}_inputmeta.yml" \
     --rebuild \
     --model-quantize  "$QNAME" \

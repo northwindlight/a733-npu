@@ -18,7 +18,9 @@ ONNX (opset 11) → pegasus/acuity → 量化 → NBG 单 .nb 文件 → A733 �
 小型 SRVGG 是不同的网络，不能用后者的速度或画质代替验收。
 输入 352×224，输出 704×448，DIV2K 16 张图校准，INT16 动态定点量化。
 首轮 uint8 在实际素材上的 NBG / ONNX 仅为 31.80–38.63 dB，未通过 40 dB 精度闸，
-不作为部署版本；板端重叠量及 INT16 精度需用实际输出验证。
+不作为部署版本。随后发现旧流水线未传 `--iterations`，Pegasus 默认仅校准 1 次，
+准备 16 张图并不等于实际使用 16 张；现显式 batch=1、iterations=calib.n。
+板端重叠量及 INT16 精度需用实际输出验证。
 权重 SHA256：`49fafd45f8fd7aa8d31ab2a22d14d91b536c34494a5cfe31eb5d89c2fa266abb`。
 
 导出把输入 pixel-unshuffle 与第一层卷积等价合并为 6×6 / stride 2 卷积，
