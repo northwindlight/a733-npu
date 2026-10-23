@@ -177,6 +177,8 @@ jobs:
           path: |
             models/${{ inputs.model }}/wksp/**/*.nb
             models/${{ inputs.model }}/build_info.json
+            models/${{ inputs.model }}/NOTICE
+            models/${{ inputs.model }}/LICENSE.*
 
       # 滚动 Release：tag 固定为 nbg-<model>-<npu>，每次重建覆盖同名附件。
       # 这样板子上用的下载 URL 长期不变 —— CI artifact 90 天就过期了。
@@ -196,5 +198,8 @@ jobs:
           gh release view "$TAG" >/dev/null 2>&1 || \
             gh release create "$TAG" --title "$NAME NBG (${{ inputs.npu }})" \
               --notes "由 Build NBG workflow 生成；同名附件每次重建覆盖。见 build_info.json。"
-          gh release upload "$TAG" network_binary.nb models/$NAME/build_info.json --clobber
+          shopt -s nullglob
+          LICENSES=(models/"$NAME"/LICENSE.*)
+          if [ -f "models/$NAME/NOTICE" ]; then LICENSES+=("models/$NAME/NOTICE"); fi
+          gh release upload "$TAG" network_binary.nb models/$NAME/build_info.json "${LICENSES[@]}" --clobber
           echo "Release: https://github.com/${{ github.repository }}/releases/download/$TAG/network_binary.nb" >> "$GITHUB_STEP_SUMMARY"
