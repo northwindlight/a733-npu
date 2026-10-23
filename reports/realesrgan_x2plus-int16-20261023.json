@@ -1,0 +1,93 @@
+{
+  "schema": 1,
+  "date": "2026-10-23",
+  "model": "realesrgan_x2plus",
+  "quant": {
+    "qtype": "int16",
+    "quantizer": "dynamic_fixed_point",
+    "iterations": 32,
+    "batch_size": 1
+  },
+  "nbg_sha256": "1fa9969f59ddaf3e2ac29aa42330d78b376efd17799815d62f010a63cb448804",
+  "onnx_sha256": "80839a4d7d5bc81186ecc76c79a637d42c1f20f5659853b05ea4469a6c9237b1",
+  "scope": "main_image_only",
+  "minimum_backend_psnr_db": 40,
+  "main_image_gate_passed": true,
+  "cases": [
+    {
+      "name": "face",
+      "mae": 1.0426570177078247,
+      "max": 32.0,
+      "psnr": 44.63045120239258,
+      "in_acceptance_scope": true
+    },
+    {
+      "name": "hair",
+      "mae": 1.0697818994522095,
+      "max": 33.0,
+      "psnr": 44.02885437011719,
+      "in_acceptance_scope": true
+    },
+    {
+      "name": "shadow",
+      "mae": 1.097583293914795,
+      "max": 41.0,
+      "psnr": 43.95708084106445,
+      "in_acceptance_scope": true
+    },
+    {
+      "name": "subtitle",
+      "mae": 1.4718879461288452,
+      "max": 81.0,
+      "psnr": 38.31648254394531,
+      "in_acceptance_scope": false
+    }
+  ],
+  "subtitle_status": "deferred; raw NBG subtitle reconstruction not accepted",
+  "metric_note": "NBG versus same floating-point ONNX, not quality versus true HR ground truth",
+  "calibration": {
+    "declared_source": "div2k_text",
+    "n": 32,
+    "fallback_to_random": false,
+    "trustworthy": true
+  },
+  "tile_wh": [
+    352,
+    224
+  ],
+  "deployed_margin": 64,
+  "input_interface": "normalized RGB INT16 DFP; explicit --input-int16",
+  "pipeline_checks": {
+    "fullframe": {
+      "source_wh": [
+        1920,
+        1080
+      ],
+      "output_wh": [
+        3840,
+        2160
+      ],
+      "frames": 1,
+      "fps": 1,
+      "video_duration_s": 1,
+      "wall_s": 157.9,
+      "kind": "static frame test"
+    },
+    "motion_crop": {
+      "source_wh": [
+        320,
+        180
+      ],
+      "output_wh": [
+        640,
+        360
+      ],
+      "frames": 30,
+      "fps": 30,
+      "video_duration_s": 1,
+      "chunks": 3
+    },
+    "output_matrix": "BT.709",
+    "audio_present": true
+  }
+}

@@ -1,0 +1,60 @@
+{
+  "schema": 1,
+  "date": "2026-10-23",
+  "model": "realesrgan_x2plus_u8",
+  "quant": {
+    "qtype": "uint8",
+    "quantizer": "asymmetric_affine",
+    "iterations": 32,
+    "batch_size": 1
+  },
+  "nbg_sha256": "480fc4bc37bf33c3d302c65c6d1b44796f5818a9fd77baa1d5eb3a7c3a7f4719",
+  "onnx_sha256": "80839a4d7d5bc81186ecc76c79a637d42c1f20f5659853b05ea4469a6c9237b1",
+  "scope": "main_image_only",
+  "minimum_backend_psnr_db": 40,
+  "main_image_gate_passed": false,
+  "cases": [
+    {
+      "name": "face",
+      "mae": 3.9833602905273438,
+      "max": 63.0,
+      "psnr": 33.993072509765625,
+      "in_acceptance_scope": true
+    },
+    {
+      "name": "hair",
+      "mae": 3.7861297130584717,
+      "max": 81.0,
+      "psnr": 34.12162399291992,
+      "in_acceptance_scope": true
+    },
+    {
+      "name": "shadow",
+      "mae": 3.4150021076202393,
+      "max": 73.0,
+      "psnr": 35.12519073486328,
+      "in_acceptance_scope": true
+    },
+    {
+      "name": "subtitle",
+      "mae": 4.140174865722656,
+      "max": 101.0,
+      "psnr": 33.15653610229492,
+      "in_acceptance_scope": false
+    }
+  ],
+  "subtitle_status": "deferred; raw NBG subtitle reconstruction not accepted",
+  "metric_note": "NBG versus same floating-point ONNX, not quality versus true HR ground truth",
+  "calibration": {
+    "declared_source": "div2k_text",
+    "n": 32,
+    "fallback_to_random": false,
+    "trustworthy": true
+  },
+  "tile_wh": [
+    352,
+    224
+  ],
+  "deployed_margin": 64,
+  "input_interface": "RGB UINT8"
+}

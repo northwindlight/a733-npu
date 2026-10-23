@@ -11,7 +11,7 @@ ONNX (opset 11) → pegasus/acuity → 量化 → NBG 单 .nb 文件 → A733 �
 
 ---
 
-## RealESRGAN x2plus 画质优先候选
+## RealESRGAN x2plus 画质优先
 
 `models/realesrgan_x2plus`：官方 **RealESRGAN_x2plus**，原生 x2，
 23 个 RRDB 块、64 特征，约 16.7M 参数。它与 `realesr-general-x4v3`
@@ -22,7 +22,15 @@ ONNX (opset 11) → pegasus/acuity → 量化 → NBG 单 .nb 文件 → A733 �
 首轮 uint8 在实际素材上的 NBG / ONNX 仅为 31.80–38.63 dB，未通过 40 dB 精度闸，
 不作为部署版本。随后发现旧流水线未传 `--iterations`，Pegasus 默认仅校准 1 次，
 准备 16 张图并不等于实际使用 16 张；现显式 batch=1、iterations=calib.n。
-板端重叠量及 INT16 精度需用实际输出验证。
+板端选择重叠 64，原生 1080p 每帧 108 块。实际主画面图块的 INT16 NBG / ONNX
+为人脸 44.63 dB、发丝 44.03 dB、暗部 43.96 dB，均通过 40 dB 门槛。
+相同 32 张校准图的 `realesrgan_x2plus_u8` 对照只有约 34–35 dB，未通过主画面门槛。
+原始字幕图块仍只有 38.32 dB，**不属于已验收能力**；服务暂沿用原有区域保护，
+字幕视觉提取与单独处理留待后续。以上只是后端数值一致性，不是相对真实高清图的评分。
+
+INT16 NBG 输入是归一化 RGB 动态定点，不能直接拷贝 UINT8 像素。
+使用更新的 a733-sr `srpipe --input-int16`，按 NBG 内嵌 fixed-point position
+转换 `pixel/255`。板端单块推理及 SDK 反量化约 1.45 秒，不能沿用旧小模型帧率。
 权重 SHA256：`49fafd45f8fd7aa8d31ab2a22d14d91b536c34494a5cfe31eb5d89c2fa266abb`。
 
 导出把输入 pixel-unshuffle 与第一层卷积等价合并为 6×6 / stride 2 卷积，
@@ -38,6 +46,8 @@ ONNX (opset 11) → pegasus/acuity → 量化 → NBG 单 .nb 文件 → A733 �
 权重与转换产物遵守 **CC-BY-NC-SA-4.0**；署名 the-database，修改为静态 ONNX 和 A733 uint8 NBG。
 [原作者发布与权重](https://github.com/the-database/mpv-AnimeJaNai/releases/tag/3.0.0)。
 导出脚本校验发布包及权重 SHA256，并逐值比较 PyTorch / ORT。板端必须使用 RGB 通道顺序。
+历史 AnimeJaNai 产物准备了 16 张图，但旧流水线默认只执行 1 次校准；本次修复迭代参数后，
+重建才会实际执行声明的次数。既有产物的真机数值检查仍为下述实测结果。
 
 板端数值闸已实现：`scripts/compare_nbg.py --onnx model.onnx --input tile.png --actual tile.out --min-psnr 40`。
 输入需等于 NBG 块尺寸，srpipe 单块、margin=0、不锐化、不转 NV12，输出为 gbrp。
